@@ -1,0 +1,39 @@
+#!/bin/sh
+# SSHlyth - pre-install script
+# Validates that Python 3 is available from any source before installation.
+
+PKG="SSHlyth"
+LOG="/tmp/sshlyth_preinst.log"
+
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" | tee -a "$LOG"; }
+ok()   { log "[OK]   $1"; }
+err()  { log "[ERR]  $1"; }
+
+log "===== Pre-install started ====="
+log "DSM version    : $(cat /etc/VERSION 2>/dev/null | grep productversion | cut -d'"' -f2 || echo unknown)"
+log "Architecture   : $(uname -m)"
+log "SYNOPKG_PKGDEST: ${SYNOPKG_PKGDEST:-not set}"
+
+# Detect Python 3 from any installed source (Synology official, SynoCommunity, Entware, etc.)
+log "--- Checking for Python 3 ---"
+PYTHON=""
+for py in \
+    /var/packages/Python3/target/bin/python3 \
+    /var/packages/Python3.9/target/bin/python3 \
+    /var/packages/Python310/target/bin/python3 \
+    /var/packages/Python311/target/bin/python3 \
+    /usr/local/bin/python3 \
+    /usr/bin/python3 \
+    /opt/bin/python3 \
+    /bin/python3; do
+    if [ -x "$py" ]; then PYTHON="$py"; break; fi
+done
+
+if [ -z "$PYTHON" ]; then
+    err "Python 3 not found. Please install a Python 3 package (any version) from Package Center before installing SSHlyth."
+    exit 1
+fi
+
+ok "Python 3 found : $PYTHON ($("$PYTHON" --version 2>&1))"
+log "===== Pre-install completed successfully ====="
+exit 0

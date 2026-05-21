@@ -1,0 +1,13 @@
+#!/bin/sh
+# SSHlyth - pre-uninstall script
+# nginx config is managed by DSM via conf/nginx.mustache — no manual cleanup needed.
+
+PKG="SSHlyth"
+LOG="/tmp/sshlyth_preuninst.log"
+
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" | tee -a "$LOG"; }
+
+log "===== Pre-uninstall started ====="
+log "DSM will automatically remove the nginx /SSHlyth/ route on uninstall."
+log "===== Pre-uninstall completed ====="
+exit 0

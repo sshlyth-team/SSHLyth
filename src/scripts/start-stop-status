@@ -1,0 +1,108 @@
+#!/bin/sh
+# SSHlyth - service control script
+# Manages the Flask SSH server running on port 7722.
+
+SYNOPKG_PKGDEST="${SYNOPKG_PKGDEST:-/var/packages/sshlyth/target}"
+PKG="SSHlyth"
+PID_FILE="$SYNOPKG_PKGDEST/sshlyth.pid"
+LOG_FILE="$SYNOPKG_PKGDEST/sshlyth.log"
+APP="$SYNOPKG_PKGDEST/server.py"
+
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" >> "$LOG_FILE"; }
+ok()   { log "[OK]   $1"; }
+warn() { log "[WARN] $1"; }
+err()  { log "[ERR]  $1"; }
+
+# ── Locate Python 3 ───────────────────────────────────────────────────────────
+PYTHON=""
+for py in \
+    /var/packages/Python3/target/bin/python3 \
+    /var/packages/Python3.9/target/bin/python3 \
+    /var/packages/Python310/target/bin/python3 \
+    /var/packages/Python311/target/bin/python3 \
+    /usr/local/bin/python3 \
+    /usr/bin/python3 \
+    /opt/bin/python3 \
+    /bin/python3; do
+    if [ -x "$py" ]; then PYTHON="$py"; break; fi
+done
+
+if [ -z "$PYTHON" ]; then
+    err "Python 3 not found — cannot start service"
+    exit 1
+fi
+
+is_running() {
+    [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+
+case "$1" in
+    start)
+        log "--- Start requested ---"
+        if is_running; then
+            PID=$(cat "$PID_FILE")
+            log "Already running (PID $PID), nothing to do"
+            exit 0
+        fi
+
+        if [ ! -f "$APP" ]; then
+            err "server.py not found at $APP"
+            exit 1
+        fi
+
+        log "Python         : $PYTHON ($("$PYTHON" --version 2>&1))"
+        log "App            : $APP"
+        log "PID file       : $PID_FILE"
+        log "PYTHONPATH     : $SYNOPKG_PKGDEST/lib"
+
+        cd "$SYNOPKG_PKGDEST" || { err "Cannot cd to $SYNOPKG_PKGDEST"; exit 1; }
+        PYTHONPATH="$SYNOPKG_PKGDEST/lib" "$PYTHON" "$APP" >> "$LOG_FILE" 2>&1 &
+        echo $! > "$PID_FILE"
+        PID=$(cat "$PID_FILE")
+
+        # Brief pause to catch immediate crashes
+        sleep 1
+        if is_running; then
+            ok "Service started (PID $PID) — listening on port 7722"
+        else
+            err "Service exited immediately after start (PID $PID) — check $LOG_FILE"
+            rm -f "$PID_FILE"
+            exit 1
+        fi
+        exit 0
+        ;;
+
+    stop)
+        log "--- Stop requested ---"
+        if is_running; then
+            PID=$(cat "$PID_FILE")
+            log "Stopping service (PID $PID)..."
+            kill "$PID" 2>/dev/null
+            sleep 1
+            if is_running; then
+                warn "Process still alive, sending SIGKILL..."
+                kill -9 "$PID" 2>/dev/null
+            fi
+            rm -f "$PID_FILE"
+            ok "Service stopped"
+        else
+            log "Service was not running"
+        fi
+        exit 0
+        ;;
+
+    status)
+        if is_running; then
+            PID=$(cat "$PID_FILE")
+            log "Status: running (PID $PID)"
+            exit 0
+        else
+            log "Status: not running"
+            exit 3
+        fi
+        ;;
+
+    log)
+        exit 0
+        ;;
+esac

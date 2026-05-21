@@ -1,0 +1,43 @@
+# Build output
+dist/
+build_tmp/
+
+# SPK build scripts (not distributed)
+build.ps1
+build_helper.py
+*.ps1
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Claude Code
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Secrets / certs (auto-generated at runtime)
+ssl_cert.pem
+ssl_key.pem

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SSHlyth Client</title>
+<style>
+  body { margin: 0; padding: 0; overflow: hidden; background: #1c1c2e; }
+  iframe { width: 100vw; height: 100vh; border: none; display: block; }
+</style>
+</head>
+<body>
+<iframe id="app" src=""></iframe>
+<script>
+(function () {
+    // Build URL from current origin so the external router port is preserved
+    var frame = document.getElementById('app');
+    frame.src = window.location.origin + '/SSHlyth/';
+
+    // If inside DSM webman, open as a native SYNO.SDS window and close this tab
+    function tryOpenAsSynoWindow() {
+        try {
+            if (window.SYNO && SYNO.SDS && SYNO.SDS.AppMgr) {
+                SYNO.SDS.AppMgr.createApp('SYNO.SDS.sshlyth');
+                setTimeout(function () { window.close(); }, 300);
+                return true;
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    if (!tryOpenAsSynoWindow()) {
+        setTimeout(tryOpenAsSynoWindow, 800);
+    }
+})();
+</script>
+</body>
+</html>

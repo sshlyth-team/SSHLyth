@@ -1,0 +1,10 @@
+#!/bin/sh
+# SSHlyth - post-upgrade script
+# Runs after the package files have been replaced during an upgrade.
+PKG="SSHlyth"
+LOG="/tmp/sshlyth_postupgrade.log"
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" | tee -a "$LOG"; }
+log "===== Post-upgrade started ====="
+log "Upgraded to: ${SYNOPKG_NEW_PKGVER:-unknown}"
+log "===== Post-upgrade completed ====="
+exit 0

@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "SYNO.SDS.sshlyth": {
+      "title": "SSHlyth Client",
+      "desc": "Web-based SSH client for Synology DSM 7",
+      "icon": "images/sshlyth-{0}.png",
+      "type": "url",
+      "url": "/SSHlyth/",
+      "allUsers": true,
+      "grantPrivilege": "all",
+      "advanceGrantPrivilege": true
+    }
+  }
+}

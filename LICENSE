@@ -1,0 +1,43 @@
+SSHlyth — Source Available License
+Copyright (c) 2024–2026 SSHlyth Team
+
+TERMS AND CONDITIONS
+
+1. Personal Use
+   Permission is granted, free of charge, to any individual to obtain a copy
+   of this software and associated source code, and to use, run, and modify it
+   for personal, non-commercial purposes only.
+
+2. Source Code
+   You may download, read, and modify the source code for personal use or to
+   contribute improvements back to the project. Redistribution of modified or
+   unmodified copies is permitted provided it is done free of charge and for
+   non-commercial purposes only, and this license notice is retained in full.
+
+3. Commercial Use — Prohibited Without Permission
+   Any commercial use of this software is strictly prohibited without prior
+   written authorization from the copyright holder. This includes, but is not
+   limited to:
+
+   - Use by companies or organizations as part of their internal infrastructure
+     or operations, whether or not a fee is charged to end users.
+   - Offering this software or any derivative work as a hosted or managed
+     service (Software as a Service, SaaS).
+   - Bundling or redistributing this software as part of a commercial product
+     or service offering.
+   - Any use intended to generate revenue, directly or indirectly.
+
+4. No Warranty
+   THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF,
+   OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+5. Contact for Commercial Licensing
+   If you are interested in using SSHlyth commercially or need a custom
+   licensing arrangement, please contact:
+
+   sshlyth@clustarion.com

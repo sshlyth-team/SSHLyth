@@ -1,0 +1,91 @@
+#!/bin/sh
+# SSHlyth - post-install script
+# Installs Python dependencies and configures nginx reverse proxy.
+
+SYNOPKG_PKGDEST="${SYNOPKG_PKGDEST:-/var/packages/sshlyth/target}"
+PKG="SSHlyth"
+LOG="$SYNOPKG_PKGDEST/install.log"
+
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" | tee -a "$LOG"; }
+ok()   { log "[OK]   $1"; }
+warn() { log "[WARN] $1"; }
+err()  { log "[ERR]  $1"; }
+
+log "===== Post-install started ====="
+log "Package dest   : $SYNOPKG_PKGDEST"
+log "DSM version    : $(cat /etc/VERSION 2>/dev/null | grep productversion | cut -d'"' -f2 || echo unknown)"
+log "Kernel         : $(uname -r)"
+log "Architecture   : $(uname -m)"
+log "Disk free      : $(df -h "$SYNOPKG_PKGDEST" 2>/dev/null | tail -1 | awk '{print $4}' || echo unknown)"
+
+# ── 1. Locate Python 3 ────────────────────────────────────────────────────────
+log "--- Step 1: Locating Python 3 ---"
+PYTHON=""
+for py in \
+    /var/packages/Python3/target/bin/python3 \
+    /var/packages/Python3.9/target/bin/python3 \
+    /var/packages/Python310/target/bin/python3 \
+    /var/packages/Python311/target/bin/python3 \
+    /usr/local/bin/python3 \
+    /usr/bin/python3 \
+    /opt/bin/python3 \
+    /bin/python3; do
+    if [ -x "$py" ]; then PYTHON="$py"; break; fi
+done
+
+if [ -z "$PYTHON" ]; then
+    # Should never happen: Python3 is declared as install_dep_packages in INFO
+    err "Python 3 not found — this is unexpected since Python3 is a declared dependency."
+    exit 1
+fi
+
+PY_VERSION=$("$PYTHON" --version 2>&1)
+ok "Python found: $PYTHON ($PY_VERSION)"
+
+# ── 2. Bootstrap pip if missing ───────────────────────────────────────────────
+log "--- Step 2: Checking pip ---"
+if "$PYTHON" -m pip --version >> "$LOG" 2>&1; then
+    PIP_VERSION=$("$PYTHON" -m pip --version 2>&1)
+    ok "pip available: $PIP_VERSION"
+else
+    warn "pip not found, bootstrapping with ensurepip..."
+    "$PYTHON" -m ensurepip --upgrade >> "$LOG" 2>&1
+    if "$PYTHON" -m pip --version >> "$LOG" 2>&1; then
+        ok "pip bootstrapped successfully"
+    else
+        err "pip bootstrap failed. Cannot install dependencies."
+        exit 0
+    fi
+fi
+
+# ── 3. Install Python dependencies ────────────────────────────────────────────
+log "--- Step 3: Installing dependencies from requirements.txt ---"
+LIB_DIR="$SYNOPKG_PKGDEST/lib"
+REQS="$SYNOPKG_PKGDEST/requirements.txt"
+mkdir -p "$LIB_DIR"
+log "Target lib dir : $LIB_DIR"
+log "Requirements   : $REQS"
+
+if [ ! -f "$REQS" ]; then
+    err "requirements.txt not found at $REQS"
+else
+    if "$PYTHON" -m pip install --target "$LIB_DIR" -r "$REQS" >> "$LOG" 2>&1; then
+        for pkg in flask paramiko flask_socketio simple_websocket; do
+            VER=$("$PYTHON" -c "import sys; sys.path.insert(0,'$LIB_DIR'); import $pkg; print(getattr($pkg,'__version__','ok'))" 2>/dev/null || echo "NOT FOUND")
+            ok "$pkg : $VER"
+        done
+    else
+        err "pip install failed. Check network connectivity and retry."
+    fi
+fi
+
+# ── 4. nginx reverse proxy ───────────────────────────────────────────────────
+# DSM automatically processes conf/nginx.mustache from the package and
+# configures the /SSHlyth/ reverse proxy. No manual action required.
+log "--- Step 4: nginx ---"
+ok "nginx route /SSHlyth/ will be configured automatically by DSM via conf/nginx.mustache"
+
+log "===== Post-install completed ====="
+log "Log file: $LOG"
+log "Access the app at: http://your-nas-address/SSHlyth/"
+exit 0

@@ -1,0 +1,11 @@
+#!/bin/sh
+# SSHlyth - pre-upgrade script
+# Runs before the package files are replaced during an upgrade.
+PKG="SSHlyth"
+LOG="/tmp/sshlyth_preupgrade.log"
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$PKG] $1" | tee -a "$LOG"; }
+log "===== Pre-upgrade started ====="
+log "Upgrading from: ${SYNOPKG_OLD_PKGVER:-unknown}"
+log "Upgrading to  : ${SYNOPKG_NEW_PKGVER:-unknown}"
+log "===== Pre-upgrade completed ====="
+exit 0

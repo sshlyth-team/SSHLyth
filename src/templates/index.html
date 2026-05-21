@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSHlyth</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg:      #1e1e2e;
+            --surface: #181825;
+            --surface2:#313244;
+            --border:  #45475a;
+            --text:    #cdd6f4;
+            --sub:     #a6adc8;
+            --blue:    #89b4fa;
+            --green:   #a6e3a1;
+            --red:     #f38ba8;
+            --accent:  #1e66f5;
+        }
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 12px;
+            gap: 10px;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .header h1 { font-size: 15px; color: var(--blue); letter-spacing: 1px; }
+        .header span { font-size: 11px; color: var(--sub); }
+
+        /* Connection panel */
+        .conn-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+        .field { display: flex; flex-direction: column; gap: 3px; }
+        label { font-size: 10px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.8px; }
+        input[type="text"], input[type="number"], input[type="password"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 5px 9px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus { border-color: var(--accent); }
+        input:disabled { opacity: 0.4; cursor: not-allowed; }
+        #inp-host { width: 160px; }
+        #inp-port { width: 70px; }
+        #inp-user { width: 120px; }
+        #inp-pass { width: 120px; }
+
+        /* Status dot */
+        .conn-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--sub); margin-left: auto; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background 0.3s, box-shadow 0.3s; flex-shrink: 0; }
+        .dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .dot.err { background: var(--red); }
+
+        /* Buttons */
+        button { padding: 6px 14px; border: none; border-radius: 4px; font-family: inherit; font-size: 13px; cursor: pointer; transition: opacity 0.15s, background 0.15s; white-space: nowrap; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: #0e639c; color: #fff; }
+        .btn-primary:not(:disabled):hover { background: #1177bb; }
+        .btn-danger  { background: #6a1212; color: #fff; }
+        .btn-danger:not(:disabled):hover  { background: #8b1a1a; }
+
+        /* Terminal */
+        #terminal-container {
+            flex: 1;
+            min-height: 0;
+            background: #0d0d13;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px;
+            overflow: hidden;
+        }
+        .xterm { height: 100%; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>&#x25B6; SSHlyth</h1>
+    <span>Web SSH Client</span>
+</div>
+
+<div class="conn-panel">
+    <div class="field">
+        <label>Host / IP</label>
+        <input id="inp-host" type="text" value="127.0.0.1" spellcheck="false">
+    </div>
+    <div class="field">
+        <label>SSH Port</label>
+        <input id="inp-port" type="number" value="22" min="1" max="65535">
+    </div>
+    <div class="field">
+        <label>Username</label>
+        <input id="inp-user" type="text" spellcheck="false">
+    </div>
+    <div class="field">
+        <label>Password</label>
+        <input id="inp-pass" type="password">
+    </div>
+    <button id="btn-conn" class="btn-primary" onclick="toggleConnect()">Connect</button>
+    <div class="conn-status">
+        <div class="dot" id="dot"></div>
+        <span id="conn-label">Disconnected</span>
+    </div>
+</div>
+
+<div id="terminal-container"></div>
+
+<!-- xterm.js from CDN, socket.io client served by Flask-SocketIO (ensures version match) -->
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+    const $ = id => document.getElementById(id);
+
+    // ── xterm.js ──────────────────────────────────────────────────────
+    const term = new Terminal({
+        theme: {
+            background:    '#0d0d13',
+            foreground:    '#cdd6f4',
+            cursor:        '#f5c2e7',
+            black:         '#45475a', brightBlack:   '#585b70',
+            red:           '#f38ba8', brightRed:     '#f38ba8',
+            green:         '#a6e3a1', brightGreen:   '#a6e3a1',
+            yellow:        '#f9e2af', brightYellow:  '#f9e2af',
+            blue:          '#89b4fa', brightBlue:    '#89b4fa',
+            magenta:       '#f5c2e7', brightMagenta: '#f5c2e7',
+            cyan:          '#94e2d5', brightCyan:    '#94e2d5',
+            white:         '#bac2de', brightWhite:   '#a6adc8',
+        },
+        fontFamily: "'Consolas', 'Courier New', monospace",
+        fontSize: 13,
+        cursorBlink: true,
+        scrollback: 5000,
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open($('terminal-container'));
+    fitAddon.fit();
+
+    window.addEventListener('resize', () => {
+        fitAddon.fit();
+        if (connected) socket.emit('ssh_resize', { cols: term.cols, rows: term.rows });
+    });
+
+    term.writeln('\x1b[1;34mSSHlyth\x1b[0m — Web SSH Client');
+    term.writeln('Enter connection details above and click \x1b[1mConnect\x1b[0m.');
+    term.writeln('');
+
+    // ── Socket.IO ─────────────────────────────────────────────────────
+    // Derive the socket.io path from the current URL so this works both
+    // via the nginx proxy (/SSHlyth/socket.io) and direct on port 7722 (/socket.io).
+    const _prefix = window.location.pathname.slice(0, -1); // /SSHlyth/ → /SSHlyth
+    const socket = io({ path: (_prefix || '') + '/socket.io' });
+
+    let connected = false;
+
+    socket.on('connect', () => {
+        term.writeln('\x1b[90m[socket connected — transport: ' + socket.io.engine.transport.name + ']\x1b[0m');
+    });
+
+    socket.on('connect_error', err => {
+        term.writeln('\x1b[31m[socket error: ' + err.message + ']\x1b[0m');
+        $('btn-conn').disabled = false;
+    });
+
+    socket.on('ssh_connected', data => {
+        connected = true;
+        setConnected(true);
+        term.writeln('\x1b[32m' + data.message + '\x1b[0m');
+        term.focus();
+    });
+
+    socket.on('ssh_output', data => {
+        term.write(data.data);
+    });
+
+    socket.on('ssh_error', data => {
+        term.writeln('\x1b[31mError: ' + data.message + '\x1b[0m');
+        setConnected(false);
+        $('btn-conn').disabled = false;
+    });
+
+    socket.on('ssh_disconnected', () => {
+        if (connected) {
+            connected = false;
+            term.writeln('\r\n\x1b[33mSession closed.\x1b[0m');
+        }
+        setConnected(false);
+    });
+
+    // Forward all keyboard input to the SSH shell
+    term.onData(data => {
+        if (connected) socket.emit('ssh_input', { data });
+    });
+
+    // ── Connection control ────────────────────────────────────────────
+    function toggleConnect() {
+        connected ? doDisconnect() : doConnect();
+    }
+
+    function doConnect() {
+        const host     = $('inp-host').value.trim();
+        const port     = parseInt($('inp-port').value) || 22;
+        const username = $('inp-user').value.trim();
+        const password = $('inp-pass').value;
+
+        if (!host || !username) {
+            term.writeln('\x1b[31mError: Host and username are required.\x1b[0m');
+            return;
+        }
+
+        $('btn-conn').disabled = true;
+        term.writeln(`\x1b[34mConnecting to ${username}@${host}:${port}...\x1b[0m`);
+
+        fitAddon.fit();
+        socket.emit('ssh_connect', {
+            host, port, username, password,
+            cols: term.cols,
+            rows: term.rows
+        });
+    }
+
+    function doDisconnect() {
+        socket.emit('ssh_disconnect_req');
+    }
+
+    function setConnected(on) {
+        $('dot').className          = 'dot' + (on ? ' on' : '');
+        $('conn-label').textContent = on
+            ? $('inp-user').value + '@' + $('inp-host').value
+            : 'Disconnected';
+        $('btn-conn').textContent   = on ? 'Disconnect' : 'Connect';
+        $('btn-conn').className     = on ? 'btn-danger' : 'btn-primary';
+        $('btn-conn').disabled      = false;
+    }
+
+    // Connect on Enter in any input field
+    ['inp-host', 'inp-port', 'inp-user', 'inp-pass'].forEach(id => {
+        $(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !connected) doConnect();
+        });
+    });
+</script>
+</body>
+</html>

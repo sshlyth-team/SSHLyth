@@ -1,0 +1,7 @@
+{
+    "protests": [],
+    "type": "app",
+    "singleApp": true,
+    "jsMain": "app.js",
+    "appName": "SYNO.SDS.sshlyth"
+}
