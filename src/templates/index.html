@@ -96,9 +96,51 @@
             overflow: hidden;
         }
         .xterm { height: 100%; }
+
+        /* Auth overlay — shown while checking, stays if auth fails */
+        #auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+        .auth-box {
+            text-align: center;
+            max-width: 420px;
+            padding: 40px 32px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .auth-box h2 { font-size: 16px; margin-bottom: 12px; color: var(--text); }
+        .auth-box p  { font-size: 13px; color: var(--sub); line-height: 1.6; }
+        .auth-box a  { color: var(--blue); text-decoration: none; }
+        .auth-box a:hover { text-decoration: underline; }
+        .auth-box .icon { font-size: 32px; margin-bottom: 16px; }
+        .auth-error h2 { color: var(--red); }
+        .login-form { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+        .login-form input {
+            background: var(--surface2); border: 1px solid var(--border);
+            color: var(--text); padding: 7px 11px; border-radius: 4px;
+            font-family: inherit; font-size: 13px; outline: none;
+            transition: border-color 0.15s;
+        }
+        .login-form input:focus { border-color: var(--accent); }
+        .login-form .login-error { color: var(--red); font-size: 12px; display: none; margin-top: 2px; }
     </style>
 </head>
 <body>
+
+<div id="auth-overlay">
+    <div class="auth-box" id="auth-box">
+        <div class="icon">&#x29D7;</div>
+        <h2>Checking DSM session&hellip;</h2>
+        <p>Please wait.</p>
+    </div>
+</div>
 
 <div class="header">
     <h1>&#x25B6; SSHlyth</h1>
@@ -173,6 +215,116 @@
     term.writeln('Enter connection details above and click \x1b[1mConnect\x1b[0m.');
     term.writeln('');
 
+    // ── DSM session validation ────────────────────────────────────────
+    function getSynoToken() {
+        try {
+            const t = window.opener?.SYNO?.SDS?.Session?.SynoToken
+                   || window.parent?.SYNO?.SDS?.Session?.SynoToken
+                   || window.SYNO?.SDS?.Session?.SynoToken
+                   || '';
+            console.log('[SSHlyth] SynoToken found:', !!t,
+                        'opener:', !!window.opener,
+                        'parent===window:', window.parent === window);
+            return t;
+        } catch(e) {
+            console.log('[SSHlyth] getSynoToken error:', e);
+            return '';
+        }
+    }
+
+    let _synoToken = '';
+
+    function showAuthError() {
+        const box = $('auth-box');
+        box.classList.add('auth-error');
+        box.innerHTML =
+            '<div class="icon">&#x26D4;</div>' +
+            '<h2>Access denied</h2>' +
+            '<p>A valid DSM session is required.<br>' +
+            'Please <a href="/webman/index.cgi">log in to DSM</a> first, ' +
+            'then open SSHlyth from the main menu.</p>';
+    }
+
+    function showLoginForm() {
+        const box = $('auth-box');
+        box.innerHTML =
+            '<div class="icon">&#x1F511;</div>' +
+            '<h2>DSM Login</h2>' +
+            '<p>Enter your DSM credentials to continue.</p>' +
+            '<div class="login-form">' +
+            '<input type="text" id="dsm-user" placeholder="Username" autocomplete="username">' +
+            '<input type="password" id="dsm-pass" placeholder="Password" autocomplete="current-password">' +
+            '<button class="btn-primary" id="dsm-login-btn" onclick="doLoginDSM()">Login</button>' +
+            '<p class="login-error" id="dsm-error"></p>' +
+            '</div>';
+        setTimeout(() => { const el = $('dsm-user'); if (el) el.focus(); }, 50);
+        setTimeout(() => {
+            ['dsm-user','dsm-pass'].forEach(id => {
+                const el = $(id);
+                if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doLoginDSM(); });
+            });
+        }, 50);
+    }
+
+    async function doLoginDSM() {
+        const userEl = $('dsm-user'), passEl = $('dsm-pass');
+        const errEl  = $('dsm-error'), btn = $('dsm-login-btn');
+        const username = userEl.value.trim(), password = passEl.value;
+        errEl.style.display = 'none';
+        if (!username) { errEl.textContent = 'Username is required'; errEl.style.display = ''; return; }
+        btn.disabled = true; btn.textContent = 'Logging in…';
+        try {
+            const r = await fetch('/login-dsm', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password}),
+            });
+            const data = await r.json();
+            if (data.valid) {
+                $('auth-overlay').style.display = 'none';
+            } else {
+                errEl.textContent = data.error || 'Login failed';
+                errEl.style.display = 'block';
+                btn.disabled = false; btn.textContent = 'Login';
+            }
+        } catch(e) {
+            errEl.textContent = 'Connection error';
+            errEl.style.display = 'block';
+            btn.disabled = false; btn.textContent = 'Login';
+        }
+    }
+
+    (async function checkDSMAuth() {
+        _synoToken = getSynoToken();
+        const base = window.location.pathname.replace(/\/[^/]*$/, '') || '';
+        const validateUrl = base + '/validate-dsm';
+
+        if (_synoToken) {
+            // DSM menu context — validate via SynoToken
+            try {
+                const r = await fetch(validateUrl, {
+                    credentials: 'include',
+                    headers: {'X-SYNO-TOKEN': _synoToken},
+                });
+                const data = await r.json();
+                if (data.valid) { $('auth-overlay').style.display = 'none'; }
+                else { showAuthError(); }
+            } catch(e) { $('auth-overlay').style.display = 'none'; }
+        } else if (window.location.port === '7722') {
+            // Direct port 7722 — show credentials form
+            showLoginForm();
+        } else {
+            // Nginx path without DSM context — check if already have a session
+            try {
+                const r = await fetch(validateUrl, { credentials: 'include' });
+                const data = await r.json();
+                if (data.valid) { $('auth-overlay').style.display = 'none'; }
+                else { showAuthError(); }
+            } catch(e) { $('auth-overlay').style.display = 'none'; }
+        }
+    })();
+
     // ── Socket.IO ─────────────────────────────────────────────────────
     // Derive the socket.io path from the current URL so this works both
     // via the nginx proxy (/SSHlyth/socket.io) and direct on port 7722 (/socket.io).
@@ -243,7 +395,8 @@
         socket.emit('ssh_connect', {
             host, port, username, password,
             cols: term.cols,
-            rows: term.rows
+            rows: term.rows,
+            syno_token: _synoToken,
         });
     }
 

@@ -9,6 +9,7 @@ A web-based SSH client for Synology DSM 7, accessible directly from your browser
 ## Features
 
 - Full terminal emulator that supports interactive programs (vi, nano, htop, etc.)
+- DSM-based authentication or using DSM credentials (port 7722)
 - HTTPS on port 7722 with auto-generated certificate
 - Accessible via your NAS address through nginx reverse proxy (`/SSHlyth/`) — the nginx setup commands are provided openly so you can review and run them yourself, with no hidden system modifications
 - Real-time bidirectional communication via WebSockets.
@@ -44,14 +45,18 @@ https://your-nas-address:7722/
 ```
 
 SSHlyth generates a self-signed certificate on first start. Your browser will show a security warning — accept it once and it will not appear again.
+In order to avoid unautenticate use of the ssh client authentication is mandatory. SSHlyth cannot reuse the DSM session in this mode. A login form will appear asking for your DSM username and password. Only users with valid DSM credentials can proceed.
 
-### Option 2 — Via your NAS address (nginx reverse proxy)
+### Option 2 — From the DSM main menu (nginx reverse proxy setup)
 
 ```
 https://your-nas-address/SSHlyth/
 ```
 
-This uses DSM's own HTTPS certificate (no browser warning). Requires a one-time nginx setup after installation. See Nginx Setup.
+This feature leverages the existing DSM session, eliminating browser warnings and the need for additional authentication.
+A one-time Nginx setup is required after installation. See the Nginx Setup section for details.
+
+This functionality is available when the Nginx reverse proxy is configured (Option 2 above).
 
 ---
 
@@ -63,9 +68,8 @@ After installing the package, run the following two commands on your NAS as root
 sudo cp /var/packages/sshlyth/target/nginx-location.conf /etc/nginx/conf.d/dsm.sshlyth.conf
 sudo kill -HUP $(cat /run/nginx.pid)
 ```
-
-These commands only need to be run once after installation (or after a DSM update that resets nginx configuration).
-
+This script configures Nginx to redirect traffic to your-nas-address/SSHlyth/.
+The commands only need to be run once after installation, or after a DSM update that resets the Nginx configuration.
 ---
 
 
